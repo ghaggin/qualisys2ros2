@@ -17,12 +17,14 @@
 #ifndef MOCAP_DRIVER_BASE_H
 #define MOCAP_DRIVER_BASE_H
 
-#include <Eigen/Dense>
-#include <Eigen/Geometry>
 #include <boost/shared_ptr.hpp>
 #include <boost/thread.hpp>
+#include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/Geometry>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <map>
 #include <mocap_base/KalmanFilter.h>
+#include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <string>
 #include <tf2_ros/transform_broadcaster.h>
@@ -42,7 +44,7 @@ class Subject {
     /*
      * @brief Constructor and Destructor
      */
-    Subject(ros::NodeHandle* nptr, const std::string& sub_name, const std::string& p_frame);
+    Subject(rclcpp::Node* nh, const std::string& sub_name, const std::string& p_frame);
     ~Subject() {
     }
 
@@ -109,10 +111,10 @@ class Subject {
     boost::shared_mutex mtx;
 
     // Publisher for the subject
-    ros::NodeHandle* nh_ptr;
-    std::string      parent_frame;
-    ros::Publisher   pub_filter;
-    ros::Publisher   pub_raw;
+    rclcpp::Node*                                                 nh_ptr;
+    std::string                                                   parent_frame_;
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr         pub_filter_;
+    rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pub_raw_;
 };
 
 /*
@@ -129,6 +131,7 @@ class MoCapDriverBase : public rclcpp::Node {
     MoCapDriverBase(const rclcpp::NodeOptions& options)
         : Node("mocap_driver", options), frame_rate(100), model_list(std::vector<std::string>(0)),
           publish_tf(false), fixed_frame_id("mocap") {
+        //   tf_publisher_ = this->create_publisher<tf2_msgs::msg::TFMessage>("/tf")
         return;
     }
 
@@ -190,9 +193,9 @@ class MoCapDriverBase : public rclcpp::Node {
     std::map<std::string, Subject::SubjectPtr> subjects;
 
     // Publish tf
-    bool                          publish_tf;
-    std::string                   fixed_frame_id;
-    tf2_ros::TransformBroadcaster tf_publisher_;
+    bool                                                   publish_tf;
+    std::string                                            fixed_frame_id;
+    rclcpp::Publisher<tf2_msgs::msg::TFMessage>::SharedPtr tf_publisher_;
 };
 } // namespace mocap
 

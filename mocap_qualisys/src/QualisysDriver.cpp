@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#include <Eigen/Dense>
-#include <Eigen/Geometry>
+#include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/Geometry>
 
 #include <chrono>
 #include <cmath>
@@ -103,6 +103,8 @@ bool QualisysDriver::init() {
     // Get 6DOF settings
     port_protocol.Read6DOFSettings();
 
+    tf_publisher_ = this->create_publisher<tf2_msgs::msg::TFMessage>("/tf", 10);
+
     return true;
 }
 
@@ -162,7 +164,7 @@ void QualisysDriver::handleFrame() {
             // Create a new subject if it does not exist
             if (subjects.find(subject_name) == subjects.end()) {
                 subjects[subject_name] =
-                    Subject::SubjectPtr(new Subject(&nh, subject_name, fixed_frame_id));
+                    Subject::SubjectPtr(new Subject(this, subject_name, fixed_frame_id));
                 subjects[subject_name]->setParameters(process_noise, measurement_noise, frame_rate);
             }
             // Handle the subject in a different thread
@@ -214,7 +216,10 @@ void QualisysDriver::handleSubject(const int& sub_idx) {
 
     tf2::Quaternion q;
     q.setEuler(yaw * deg2rad, pitch * deg2rad, roll * deg2rad);
-    tf2::fromMsg(q, m_att);
+    m_att.x() = q.getX();
+    m_att.y() = q.getY();
+    m_att.z() = q.getZ();
+    m_att.w() = q.getW();
 
     // Convert mm to m
     Eigen::Vector3d m_pos(x / 1000.0, y / 1000.0, z / 1000.0);
@@ -236,7 +241,7 @@ void QualisysDriver::handleSubject(const int& sub_idx) {
     const auto time = start_time_local_ + (packet_time - start_time_packet_);
 
     // Feed the new measurement to the subject
-    subjects[subject_name]->processNewMeasurement(time.time_since_epoch.count(), m_att, m_pos);
+    subjects[subject_name]->processNewMeasurement(time.time_since_epoch().count(), m_att, m_pos);
 
     // Publish tf if requred
     if (publish_tf && subjects[subject_name]->getStatus() == Subject::TRACKED) {
@@ -258,9 +263,9 @@ void QualisysDriver::handleSubject(const int& sub_idx) {
         stamped_transform.header.frame_id = fixed_frame_id;
         stamped_transform.child_frame_id  = "?";
 
-        stamped_transform.transform.translation.x = pos.x;
-        stamped_transform.transform.translation.y = pos.y;
-        stamped_transform.transform.translation.z = pos.z;
+        stamped_transform.transform.translation.x = pos.x();
+        stamped_transform.transform.translation.y = pos.y();
+        stamped_transform.transform.translation.z = pos.z();
 
         stamped_transform.transform.rotation.x = att.x();
         stamped_transform.transform.rotation.x = att.y();
@@ -270,8 +275,11 @@ void QualisysDriver::handleSubject(const int& sub_idx) {
         // tf2::Stamped<tf2::Transform> stamped_transform(
         //     tf2::Transform(att_tf, pos_tf), system_clock::now(), fixed_frame_id);
 
+        tf2_msgs::msg::TFMessage tfs;
+        tfs.transforms.push_back(stamped_transform);
+
         write_lock.lock();
-        tf_publisher_.sendTransform(stamped_transform);
+        tf_publisher_->publish(tfs);
         write_lock.unlock();
     }
 

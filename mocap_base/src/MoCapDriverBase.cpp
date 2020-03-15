@@ -14,21 +14,38 @@
  * limitations under the License.
  */
 
-#include <eigen_conversions/eigen_msg.h>
-#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <mocap_base/MoCapDriverBase.h>
-#include <nav_msgs/Odometry.h>
+#include <nav_msgs/msg/odometry.hpp>
 
 using namespace std;
 using namespace Eigen;
 
 namespace mocap {
 
-Subject::Subject(ros::NodeHandle* nptr, const string& sub_name, const std::string& p_frame)
-    : name(sub_name), status(LOST), nh_ptr(nptr), parent_frame(p_frame) {
-    pub_filter = nh_ptr->advertise<nav_msgs::Odometry>(name + "/odom", 10);
-    pub_raw    = nh_ptr->advertise<geometry_msgs::PoseStamped>(name + "/pose", 10);
-    return;
+static void quaternionEigenToMsg(const Quaterniond& q_eig, geometry_msgs::msg::Quaternion& q_msg) {
+    q_msg.w = q_eig.w();
+    q_msg.x = q_eig.x();
+    q_msg.y = q_eig.y();
+    q_msg.z = q_eig.z();
+}
+
+static void pointEigenToMsg(const Vector3d& v_eig, geometry_msgs::msg::Point& v_msg) {
+    v_msg.x = v_eig.x();
+    v_msg.y = v_eig.y();
+    v_msg.z = v_eig.z();
+}
+
+static void vectorEigenToMsg(const Vector3d& v_eig, geometry_msgs::msg::Vector3& v_msg) {
+    v_msg.x = v_eig.x();
+    v_msg.y = v_eig.y();
+    v_msg.z = v_eig.z();
+}
+
+Subject::Subject(rclcpp::Node* nptr, const string& sub_name, const std::string& p_frame)
+    : name(sub_name), status(LOST), nh_ptr(nptr), parent_frame_(p_frame) {
+    pub_filter_ = nh_ptr->create_publisher<nav_msgs::msg::Odometry>(name + "/odom", 10);
+    pub_raw_    = nh_ptr->create_publisher<geometry_msgs::msg::PoseStamped>(name + "/pose", 10);
 }
 
 // Get and set name of the subject
@@ -89,12 +106,12 @@ void Subject::processNewMeasurement(const double&      time,
     boost::unique_lock<boost::shared_mutex> write_lock(mtx);
 
     // Publish raw data from mocap system
-    geometry_msgs::PoseStamped pose_raw;
-    pose_raw.header.stamp    = ros::Time(time);
-    pose_raw.header.frame_id = parent_frame;
-    tf::quaternionEigenToMsg(m_attitude, pose_raw.pose.orientation);
-    tf::pointEigenToMsg(m_position, pose_raw.pose.position);
-    pub_raw.publish(pose_raw);
+    geometry_msgs::msg::PoseStamped pose_raw;
+    pose_raw.header.stamp    = rclcpp::Time(time);
+    pose_raw.header.frame_id = parent_frame_;
+    quaternionEigenToMsg(m_attitude, pose_raw.pose.orientation);
+    pointEigenToMsg(m_position, pose_raw.pose.position);
+    pub_raw_->publish(pose_raw);
 
     if (!kFilter.isReady()) {
         status = INITIALIZING;
@@ -108,14 +125,14 @@ void Subject::processNewMeasurement(const double&      time,
     kFilter.update(m_attitude, m_position);
 
     // Publish the new state
-    nav_msgs::Odometry odom_filter;
-    odom_filter.header.stamp    = ros::Time(time);
-    odom_filter.header.frame_id = parent_frame;
+    nav_msgs::msg::Odometry odom_filter;
+    odom_filter.header.stamp    = rclcpp::Time(time);
+    odom_filter.header.frame_id = parent_frame_;
     odom_filter.child_frame_id  = name + "/base_link";
-    tf::quaternionEigenToMsg(kFilter.attitude, odom_filter.pose.pose.orientation);
-    tf::pointEigenToMsg(kFilter.position, odom_filter.pose.pose.position);
-    tf::vectorEigenToMsg(kFilter.angular_vel, odom_filter.twist.twist.angular);
-    tf::vectorEigenToMsg(kFilter.linear_vel, odom_filter.twist.twist.linear);
+    quaternionEigenToMsg(kFilter.attitude, odom_filter.pose.pose.orientation);
+    pointEigenToMsg(kFilter.position, odom_filter.pose.pose.position);
+    vectorEigenToMsg(kFilter.angular_vel, odom_filter.twist.twist.angular);
+    vectorEigenToMsg(kFilter.linear_vel, odom_filter.twist.twist.linear);
     // To be compatible with the covariance in ROS, we have to do some shifting
     Map<Matrix<double, 6, 6, RowMajor>> pose_cov(odom_filter.pose.covariance.begin());
     Map<Matrix<double, 6, 6, RowMajor>> vel_cov(odom_filter.twist.covariance.begin());
@@ -128,7 +145,7 @@ void Subject::processNewMeasurement(const double&      time,
     vel_cov.bottomLeftCorner<3, 3>()   = kFilter.state_cov.block<3, 3>(6, 9);
     vel_cov.bottomRightCorner<3, 3>()  = kFilter.state_cov.block<3, 3>(6, 6);
 
-    pub_filter.publish(odom_filter);
+    pub_filter_->publish(odom_filter);
 
     return;
 }

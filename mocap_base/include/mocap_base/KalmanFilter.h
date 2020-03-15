@@ -17,10 +17,10 @@
 #ifndef MOCAP_KALMAN_FILTER_H
 #define MOCAP_KALMAN_FILTER_H
 
-#include <Eigen/Core>
-#include <Eigen/Geometry>
+#include <eigen3/Eigen/Core>
+#include <eigen3/Eigen/Geometry>
 
-namespace mocap{
+namespace mocap {
 
 /*
  * @brief Error state Kalman filter to estimate the pose
@@ -32,36 +32,35 @@ namespace mocap{
  *      Algebra", Technical Report Number 2005-002, Rev. 57, Mar. 2005
  */
 class KalmanFilter {
-
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    typedef Eigen::Matrix<double,  6,  6> Matrix6d;
+    typedef Eigen::Matrix<double, 6, 6>   Matrix6d;
     typedef Eigen::Matrix<double, 12, 12> Matrix12d;
-    typedef Eigen::Matrix<double,  6, 12> Matrix6_12d;
-    typedef Eigen::Matrix<double, 12,  6> Matrix12_6d;
-    typedef Eigen::Matrix<double,  6,  1> Vector6d;
-    typedef Eigen::Matrix<double, 12,  1> Vector12d;
+    typedef Eigen::Matrix<double, 6, 12>  Matrix6_12d;
+    typedef Eigen::Matrix<double, 12, 6>  Matrix12_6d;
+    typedef Eigen::Matrix<double, 6, 1>   Vector6d;
+    typedef Eigen::Matrix<double, 12, 1>  Vector12d;
 
     // NOTE: These variables are left public for quick access
     //    Do NOT modify them outsize the class
 
     // State of a rigid body
     Eigen::Quaterniond attitude;    // Takes a vector from inertia frame to body frame
-    Eigen::Vector3d position;       // In inertia frame
-    Eigen::Vector3d angular_vel;    // In body frame
-    Eigen::Vector3d linear_vel;     // In inertia frame
+    Eigen::Vector3d    position;    // In inertia frame
+    Eigen::Vector3d    angular_vel; // In body frame
+    Eigen::Vector3d    linear_vel;  // In inertia frame
 
-    Matrix12d state_cov;            // State uncertainty
-    Matrix12d input_cov;            // Input uncertainty
-    Matrix6d  measurement_cov;      // Measurement uncertainty
+    Matrix12d state_cov;       // State uncertainty
+    Matrix12d input_cov;       // Input uncertainty
+    Matrix6d  measurement_cov; // Measurement uncertainty
 
     /*
      * @brief Constructor and Destructor
      */
     KalmanFilter();
     ~KalmanFilter() {
-      return;
+        return;
     }
 
     /*
@@ -70,8 +69,7 @@ class KalmanFilter {
      * @param m_cov Measurement noise
      * @return True if success
      */
-    bool init(const Matrix12d& u_cov,
-        const Matrix6d& m_cov, const int& freq);
+    bool init(const Matrix12d& u_cov, const Matrix6d& m_cov, const int& freq);
 
     /*
      * @brief prepareInitialCondition This functions is dedicated
@@ -85,9 +83,9 @@ class KalmanFilter {
      * @return True if the input parameters are accepted; False if
      *    the filter has already been intialized
      */
-    bool prepareInitialCondition(const double& curr_time_stamp,
-        const Eigen::Quaterniond& m_attitude,
-        const Eigen::Vector3d& m_position);
+    bool prepareInitialCondition(const double&             curr_time_stamp,
+                                 const Eigen::Quaterniond& m_attitude,
+                                 const Eigen::Vector3d&    m_position);
 
     /*
      * @brief isReady Tells if the filter is ready
@@ -116,8 +114,7 @@ class KalmanFilter {
      * @param m_position Measured posiiton from the motion
      *    capture system
      */
-    void update(const Eigen::Quaterniond& m_attitude,
-        const Eigen::Vector3d& m_position);
+    void update(const Eigen::Quaterniond& m_attitude, const Eigen::Vector3d& m_position);
 
   private:
     // Disable copy constructor and assign operator for the class
@@ -127,11 +124,7 @@ class KalmanFilter {
     // Status of the filter during initialization
     // The filter requires two sets of measurements in order
     // to compute a good initial pose for the rigid body
-    enum Status{
-      INIT_POSE,
-      INIT_TWIST,
-      READY
-    };
+    enum Status { INIT_POSE, INIT_TWIST, READY };
 
     // Status of the filter
     Status filter_status;
@@ -148,6 +141,6 @@ class KalmanFilter {
     Matrix6d    meas_noise_jacob; // Measurement noise jacobian
 };
 
-}
+} // namespace mocap
 
 #endif
