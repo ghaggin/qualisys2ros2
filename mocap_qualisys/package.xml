@@ -10,6 +10,7 @@
   <author>Glen Haggin</author>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <build_depend>mocap_base</build_depend>
   <build_depend>tf2_eigen</build_depend>
 
   <export>
