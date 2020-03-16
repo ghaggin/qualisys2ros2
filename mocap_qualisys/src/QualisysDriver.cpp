@@ -28,6 +28,8 @@
 #include <tf2_eigen/tf2_eigen.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
+#include <tf2_ros/transform_broadcaster.h>
+
 using namespace std;
 using namespace Eigen;
 using namespace chrono;
@@ -39,13 +41,13 @@ double QualisysDriver::deg2rad = M_PI / 180.0;
 bool QualisysDriver::init() {
     // The base port (as entered in QTM, TCP/IP port number, in the RT output tab
     // of the workspace options
-    declare_parameter("server_address", "192.168.129.216");
+    declare_parameter("server_address_", "192.168.129.216");
     declare_parameter("server_base_port");
-    // declare_parameter("model_list");
-    declare_parameter("frame_rate");
+    // declare_parameter("model_list_");
+    declare_parameter("frame_rate_");
     declare_parameter("max_accel");
-    declare_parameter("publish_tf");
-    declare_parameter("fixed_frame_id");
+    declare_parameter("publish_tf_");
+    declare_parameter("fixed_frame_id_");
     auto parameters_client = std::make_shared<rclcpp::SyncParametersClient>(this);
 
     while (!parameters_client->wait_for_service(1s)) {
@@ -56,28 +58,28 @@ bool QualisysDriver::init() {
         }
     }
 
-    // server_address = parameters_client->get_parameter<string>("server_address",
+    // server_address_ = parameters_client->get_parameter<string>("server_address_",
     // "192.168.129.216"); base_port      =
-    // parameters_client->get_parameter<int>("server_base_port", 22222); model_list     =
-    // parameters_client->get_parameter<vector<string>>("model_list"); frame_rate     =
-    // parameters_client->get_parameter<int>("frame_rate", 100); max_accel      =
-    // parameters_client->get_parameter<double>("max_accel", 10.0); publish_tf     =
-    // parameters_client->get_parameter<bool>("publish_tf", true); fixed_frame_id =
-    // parameters_client->get_parameter<string>("fixed_frame_id", "mocap");
+    // parameters_client->get_parameter<int>("server_base_port", 22222); model_list_     =
+    // parameters_client->get_parameter<vector<string>>("model_list_"); frame_rate_     =
+    // parameters_client->get_parameter<int>("frame_rate_", 100); max_accel      =
+    // parameters_client->get_parameter<double>("max_accel", 10.0); publish_tf_     =
+    // parameters_client->get_parameter<bool>("publish_tf_", true); fixed_frame_id_ =
+    // parameters_client->get_parameter<string>("fixed_frame_id_", "mocap");
 
     /**
      * Hard Coding for now since the parameters arent working for me
      */
-    server_address = "127.0.0.1";
-    base_port_     = 22222;
-    model_list     = vector<string>(0);
-    model_list.push_back("Quad1");
-    frame_rate     = 100;
-    max_accel_     = 10.0;
-    publish_tf     = true;
-    fixed_frame_id = "mocap";
+    server_address_ = "127.0.0.1";
+    base_port_      = 22222;
+    model_list_     = vector<string>(0);
+    model_list_.push_back("Quad1");
+    frame_rate_     = 100;
+    max_accel_      = 10.0;
+    publish_tf_     = true;
+    fixed_frame_id_ = "mocap";
 
-    frame_interval_ = 1.0 / static_cast<double>(frame_rate);
+    frame_interval_ = 1.0 / static_cast<double>(frame_rate_);
     double& dt      = frame_interval_;
     process_noise_.topLeftCorner<6, 6>() =
         0.5 * Matrix<double, 6, 6>::Identity() * dt * dt * max_accel_;
@@ -85,24 +87,22 @@ bool QualisysDriver::init() {
     process_noise_ *= process_noise_; // Make it a covariance
     measurement_noise_ = Matrix<double, 6, 6>::Identity() * 1e-3;
     measurement_noise_ *= measurement_noise_; // Make it a covariance
-    model_set_.insert(model_list.begin(), model_list.end());
+    model_set_.insert(model_list_.begin(), model_list_.end());
 
     // Connecting to the server
     RCLCPP_INFO(get_logger(),
-                "Connecting to the Qualisys at: " + server_address + ":" + to_string(base_port_));
+                "Connecting to the Qualisys at: " + server_address_ + ":" + to_string(base_port_));
 
-    if (!port_protocol_.Connect((char*)server_address.data(), base_port_, 0, 1, 7)) {
+    if (!port_protocol_.Connect((char*)server_address_.data(), base_port_, 0, 1, 7)) {
         RCLCPP_FATAL(get_logger(),
-                     "Could not find the Qualisys at: " + server_address + ":" +
+                     "Could not find the Qualisys at: " + server_address_ + ":" +
                          to_string(base_port_));
         rclcpp::shutdown();
     }
-    RCLCPP_INFO(get_logger(), "Connected to " + server_address + ":" + to_string(base_port_));
+    RCLCPP_INFO(get_logger(), "Connected to " + server_address_ + ":" + to_string(base_port_));
 
     // Get 6DOF settings
     port_protocol_.Read6DOFSettings();
-
-    tf_publisher_ = this->create_publisher<tf2_msgs::msg::TFMessage>("/tf", 10);
 
     auto callback = [this]() -> void { this->run(); };
     timer_        = this->create_wall_timer(duration<double>(frame_interval_), callback);
@@ -111,7 +111,7 @@ bool QualisysDriver::init() {
 
 void QualisysDriver::disconnect() {
     RCLCPP_INFO(get_logger(),
-                "Disconnected with the server " + server_address + ":" + to_string(base_port_));
+                "Disconnected with the server " + server_address_ + ":" + to_string(base_port_));
     port_protocol_.StreamFramesStop();
     port_protocol_.Disconnect();
     return;
@@ -163,11 +163,11 @@ void QualisysDriver::handleFrame() {
         // Process the subject if required
         if (model_set_.empty() || model_set_.count(subject_name)) {
             // Create a new subject if it does not exist
-            if (subjects.find(subject_name) == subjects.end()) {
-                subjects[subject_name] =
-                    Subject::SubjectPtr(new Subject(this, subject_name, fixed_frame_id));
-                subjects[subject_name]->setParameters(
-                    process_noise_, measurement_noise_, frame_rate);
+            if (subjects_.find(subject_name) == subjects_.end()) {
+                subjects_[subject_name] =
+                    Subject::SubjectPtr(new Subject(this, subject_name, fixed_frame_id_));
+                subjects_[subject_name]->setParameters(
+                    process_noise_, measurement_noise_, frame_rate_);
             }
             // Handle the subject in a different thread by running handleSubject(i);
             subject_threads.emplace_back(&QualisysDriver::handleSubject, this, i);
@@ -180,7 +180,7 @@ void QualisysDriver::handleFrame() {
     }
 
     // Send out warnings
-    for (auto it = subjects.begin(); it != subjects.end(); ++it) {
+    for (auto it = subjects_.begin(); it != subjects_.end(); ++it) {
         Subject::Status status = it->second->getStatus();
         if (status == Subject::LOST)
             RCLCPP_WARN(get_logger(), "Lose track of subject %s", (it->first).c_str());
@@ -204,7 +204,7 @@ void QualisysDriver::handleSubject(const int& sub_idx) {
 
     // If the subject is lost
     if (isnan(x) || isnan(y) || isnan(z) || isnan(roll) || isnan(pitch) || isnan(yaw)) {
-        subjects[subject_name]->disable();
+        subjects_[subject_name]->disable();
         return;
     }
 
@@ -227,8 +227,8 @@ void QualisysDriver::handleSubject(const int& sub_idx) {
     // Convert mm to m
     Eigen::Vector3d m_pos(x / 1000.0, y / 1000.0, z / 1000.0);
     // Re-enable the object if it is lost previously
-    if (subjects[subject_name]->getStatus() == Subject::LOST) {
-        subjects[subject_name]->enable();
+    if (subjects_[subject_name]->getStatus() == Subject::LOST) {
+        subjects_[subject_name]->enable();
     }
 
     // Compute the timestamp
@@ -244,12 +244,13 @@ void QualisysDriver::handleSubject(const int& sub_idx) {
     const auto time = start_time_local_ + (packet_time - start_time_packet_);
 
     // Feed the new measurement to the subject
-    subjects[subject_name]->processNewMeasurement(time.time_since_epoch().count(), m_att, m_pos);
+    subjects_[subject_name]->processNewMeasurement(time.time_since_epoch().count(), m_att, m_pos);
 
     // Publish tf if requred
-    if (publish_tf && subjects[subject_name]->getStatus() == Subject::TRACKED) {
-        Quaterniond att = subjects[subject_name]->getAttitude();
-        Vector3d    pos = subjects[subject_name]->getPosition();
+    if (publish_tf_ && subjects_[subject_name]->getStatus() == Subject::TRACKED) {
+        Quaterniond att = subjects_[subject_name]->getAttitude();
+        Vector3d    pos = subjects_[subject_name]->getPosition();
+
         // tf2::Quaternion att_tf;
         // tf2::Vector3    pos_tf;
 
@@ -260,11 +261,11 @@ void QualisysDriver::handleSubject(const int& sub_idx) {
         // tf2::fromMsg(toMsg(pos), pos_tf);
 
         // tf::StampedTransform stamped_transform = tf::StampedTransform(
-        //     tf::Transform(att_tf, pos_tf), ros::Time::now(), fixed_frame_id, subject_name);
+        //     tf::Transform(att_tf, pos_tf), ros::Time::now(), fixed_frame_id_, subject_name);
         geometry_msgs::msg::TransformStamped stamped_transform;
         stamped_transform.header.stamp    = rclcpp::Node::now();
-        stamped_transform.header.frame_id = fixed_frame_id;
-        stamped_transform.child_frame_id  = "?";
+        stamped_transform.header.frame_id = fixed_frame_id_;
+        stamped_transform.child_frame_id  = subject_name;
 
         stamped_transform.transform.translation.x = pos.x();
         stamped_transform.transform.translation.y = pos.y();
@@ -275,14 +276,8 @@ void QualisysDriver::handleSubject(const int& sub_idx) {
         stamped_transform.transform.rotation.x = att.z();
         stamped_transform.transform.rotation.x = att.w();
 
-        // tf2::Stamped<tf2::Transform> stamped_transform(
-        //     tf2::Transform(att_tf, pos_tf), system_clock::now(), fixed_frame_id);
-
-        tf2_msgs::msg::TFMessage tfs;
-        tfs.transforms.push_back(stamped_transform);
-
         write_lock.lock();
-        tf_publisher_->publish(tfs);
+        tf_broadcaster_->sendTransform(stamped_transform);
         write_lock.unlock();
     }
 

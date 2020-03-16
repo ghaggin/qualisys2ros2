@@ -23,6 +23,7 @@
 #include <eigen3/Eigen/Geometry>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <map>
+#include <memory>
 #include <mocap_base/KalmanFilter.h>
 #include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -129,9 +130,9 @@ class MoCapDriverBase : public rclcpp::Node {
      * @param nh Ros node
      */
     MoCapDriverBase(const rclcpp::NodeOptions& options)
-        : Node("mocap_driver", options), frame_rate(100), model_list(std::vector<std::string>(0)),
-          publish_tf(false), fixed_frame_id("mocap") {
-        //   tf_publisher_ = this->create_publisher<tf2_msgs::msg::TFMessage>("/tf")
+        : Node("mocap_driver", options), frame_rate_(100), model_list_(std::vector<std::string>(0)),
+          publish_tf_(false), fixed_frame_id_("mocap"),
+          tf_broadcaster_(std::make_shared<tf2_ros::TransformBroadcaster>(*this)) {
         return;
     }
 
@@ -180,22 +181,22 @@ class MoCapDriverBase : public rclcpp::Node {
     virtual void handleSubject(const int& sub_idx) = 0;
 
     // Address of the server
-    std::string server_address;
+    std::string server_address_;
 
     // Frame rate of the mocap system
-    int frame_rate;
+    int frame_rate_;
 
     // Rigid body to be tracked
     // Empty string if all the objects in the arena are to be tracked
-    std::vector<std::string> model_list;
+    std::vector<std::string> model_list_;
 
     // Observed rigid bodies (contains those lose tracking)
-    std::map<std::string, Subject::SubjectPtr> subjects;
+    std::map<std::string, Subject::SubjectPtr> subjects_;
 
     // Publish tf
-    bool                                                   publish_tf;
-    std::string                                            fixed_frame_id;
-    rclcpp::Publisher<tf2_msgs::msg::TFMessage>::SharedPtr tf_publisher_;
+    bool                                           publish_tf_;
+    std::string                                    fixed_frame_id_;
+    std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 };
 } // namespace mocap
 
