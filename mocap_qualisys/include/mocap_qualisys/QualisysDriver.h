@@ -39,9 +39,9 @@ class QualisysDriver : public MoCapDriverBase {
      * @param nh Ros node
      */
     QualisysDriver(const rclcpp::NodeOptions& options)
-        : MoCapDriverBase(options), max_accel(10.0), frame_interval(0.01),
-          process_noise(Eigen::Matrix<double, 12, 12>::Zero()),
-          measurement_noise(Eigen::Matrix<double, 6, 6>::Zero()) {
+        : MoCapDriverBase(options), max_accel_(10.0), frame_interval_(0.01),
+          process_noise_(Eigen::Matrix<double, 12, 12>::Zero()),
+          measurement_noise_(Eigen::Matrix<double, 6, 6>::Zero()) {
         init();
     }
 
@@ -86,30 +86,30 @@ class QualisysDriver : public MoCapDriverBase {
     static double deg2rad;
 
     // Port of the server to be connected
-    int base_port;
+    int base_port_;
 
     // Protocol to connect to the server
-    CRTProtocol port_protocol;
+    CRTProtocol port_protocol_;
 
     // A pointer to the received packet
     // (no need to initialize)
-    CRTPacket* prt_packet;
+    CRTPacket* prt_packet_;
 
     // A set to hold the model names
-    std::set<std::string> model_set;
+    std::set<std::string> model_set_;
 
     // Max acceleration
-    double max_accel;
+    double max_accel_;
 
     // Average time interval between two frames
-    double frame_interval;
+    double frame_interval_;
 
     // Convariance matrices for initializing kalman filters
-    Eigen::Matrix<double, 12, 12> process_noise;
-    Eigen::Matrix<double, 6, 6>   measurement_noise;
+    Eigen::Matrix<double, 12, 12> process_noise_;
+    Eigen::Matrix<double, 6, 6>   measurement_noise_;
 
     // For multi-threading
-    boost::shared_mutex mtx;
+    boost::shared_mutex mtx_;
 
     // Timestamp stuff
     std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<double>>

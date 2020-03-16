@@ -69,65 +69,66 @@ bool QualisysDriver::init() {
      * Hard Coding for now since the parameters arent working for me
      */
     server_address = "127.0.0.1";
-    base_port      = 22222;
+    base_port_     = 22222;
     model_list     = vector<string>(0);
+    model_list.push_back("Quad1");
     frame_rate     = 100;
-    max_accel      = 10.0;
+    max_accel_     = 10.0;
     publish_tf     = true;
     fixed_frame_id = "mocap";
 
-    frame_interval = 1.0 / static_cast<double>(frame_rate);
-    double& dt     = frame_interval;
-    process_noise.topLeftCorner<6, 6>() =
-        0.5 * Matrix<double, 6, 6>::Identity() * dt * dt * max_accel;
-    process_noise.bottomRightCorner<6, 6>() = Matrix<double, 6, 6>::Identity() * dt * max_accel;
-    process_noise *= process_noise; // Make it a covariance
-    measurement_noise = Matrix<double, 6, 6>::Identity() * 1e-3;
-    measurement_noise *= measurement_noise; // Make it a covariance
-    model_set.insert(model_list.begin(), model_list.end());
+    frame_interval_ = 1.0 / static_cast<double>(frame_rate);
+    double& dt      = frame_interval_;
+    process_noise_.topLeftCorner<6, 6>() =
+        0.5 * Matrix<double, 6, 6>::Identity() * dt * dt * max_accel_;
+    process_noise_.bottomRightCorner<6, 6>() = Matrix<double, 6, 6>::Identity() * dt * max_accel_;
+    process_noise_ *= process_noise_; // Make it a covariance
+    measurement_noise_ = Matrix<double, 6, 6>::Identity() * 1e-3;
+    measurement_noise_ *= measurement_noise_; // Make it a covariance
+    model_set_.insert(model_list.begin(), model_list.end());
 
     // Connecting to the server
     RCLCPP_INFO(get_logger(),
-                "Connecting to the Qualisys at: " + server_address + ":" + to_string(base_port));
+                "Connecting to the Qualisys at: " + server_address + ":" + to_string(base_port_));
 
-    if (!port_protocol.Connect((char*)server_address.data(), base_port, 0, 1, 7)) {
+    if (!port_protocol_.Connect((char*)server_address.data(), base_port_, 0, 1, 7)) {
         RCLCPP_FATAL(get_logger(),
                      "Could not find the Qualisys at: " + server_address + ":" +
-                         to_string(base_port));
+                         to_string(base_port_));
         rclcpp::shutdown();
     }
-    RCLCPP_INFO(get_logger(), "Connected to " + server_address + ":" + to_string(base_port));
+    RCLCPP_INFO(get_logger(), "Connected to " + server_address + ":" + to_string(base_port_));
 
     // Get 6DOF settings
-    port_protocol.Read6DOFSettings();
+    port_protocol_.Read6DOFSettings();
 
     tf_publisher_ = this->create_publisher<tf2_msgs::msg::TFMessage>("/tf", 10);
 
     auto callback = [this]() -> void { this->run(); };
-    timer_        = this->create_wall_timer(duration<double>(frame_interval), callback);
+    timer_        = this->create_wall_timer(duration<double>(frame_interval_), callback);
     return true;
 }
 
 void QualisysDriver::disconnect() {
     RCLCPP_INFO(get_logger(),
-                "Disconnected with the server " + server_address + ":" + to_string(base_port));
-    port_protocol.StreamFramesStop();
-    port_protocol.Disconnect();
+                "Disconnected with the server " + server_address + ":" + to_string(base_port_));
+    port_protocol_.StreamFramesStop();
+    port_protocol_.Disconnect();
     return;
 }
 
 void QualisysDriver::run() {
-    prt_packet = port_protocol.GetRTPacket();
+    prt_packet_ = port_protocol_.GetRTPacket();
     CRTPacket::EPacketType e_type;
-    port_protocol.GetCurrentFrame(CRTProtocol::Component6dEuler);
+    port_protocol_.GetCurrentFrame(CRTProtocol::Component6dEuler);
 
-    if (port_protocol.ReceiveRTPacket(e_type, true)) {
+    if (port_protocol_.ReceiveRTPacket(e_type, true)) {
         switch (e_type) {
         // Case 1 - sHeader.nType 0 indicates an error
         case CRTPacket::PacketError:
             RCLCPP_ERROR_STREAM(
                 get_logger(),
-                "Error when streaming frames: " << port_protocol.GetRTPacket()->GetErrorString());
+                "Error when streaming frames: " << port_protocol_.GetRTPacket()->GetErrorString());
             break;
 
         // Case 2 - No more data
@@ -151,25 +152,25 @@ void QualisysDriver::run() {
 
 void QualisysDriver::handleFrame() {
     // Number of rigid bodies
-    int body_count = prt_packet->Get6DOFEulerBodyCount();
+    int body_count = prt_packet_->Get6DOFEulerBodyCount();
     // Assign each subject with a thread
     vector<boost::thread> subject_threads;
     subject_threads.reserve(body_count);
 
     for (int i = 0; i < body_count; ++i) {
-        string subject_name(port_protocol.Get6DOFBodyName(i));
+        string subject_name(port_protocol_.Get6DOFBodyName(i));
 
         // Process the subject if required
-        if (model_set.empty() || model_set.count(subject_name)) {
+        if (model_set_.empty() || model_set_.count(subject_name)) {
             // Create a new subject if it does not exist
             if (subjects.find(subject_name) == subjects.end()) {
                 subjects[subject_name] =
                     Subject::SubjectPtr(new Subject(this, subject_name, fixed_frame_id));
-                subjects[subject_name]->setParameters(process_noise, measurement_noise, frame_rate);
+                subjects[subject_name]->setParameters(
+                    process_noise_, measurement_noise_, frame_rate);
             }
-            // Handle the subject in a different thread
+            // Handle the subject in a different thread by running handleSubject(i);
             subject_threads.emplace_back(&QualisysDriver::handleSubject, this, i);
-            // handleSubject(i);
         }
     }
 
@@ -191,12 +192,14 @@ void QualisysDriver::handleFrame() {
 }
 
 void QualisysDriver::handleSubject(const int& sub_idx) {
-    boost::unique_lock<boost::shared_mutex> write_lock(mtx);
+    boost::unique_lock<boost::shared_mutex> write_lock(mtx_);
+
     // Name of the subject
-    string subject_name(port_protocol.Get6DOFBodyName(sub_idx));
+    string subject_name(port_protocol_.Get6DOFBodyName(sub_idx));
+
     // Pose of the subject
     float x, y, z, roll, pitch, yaw;
-    prt_packet->Get6DOFEulerBody(sub_idx, x, y, z, roll, pitch, yaw);
+    prt_packet_->Get6DOFEulerBody(sub_idx, x, y, z, roll, pitch, yaw);
     write_lock.unlock();
 
     // If the subject is lost
@@ -233,11 +236,11 @@ void QualisysDriver::handleSubject(const int& sub_idx) {
     if (start_time_local_ == time_point<system_clock, duration<double>>()) {
         start_time_local_  = chrono::system_clock::now();
         start_time_packet_ = time_point<system_clock, duration<double>>(
-            duration<double>(prt_packet->GetTimeStamp() / 1e6));
+            duration<double>(prt_packet_->GetTimeStamp() / 1e6));
     }
 
     const auto packet_time = time_point<system_clock, duration<double>>(
-        duration<double>(prt_packet->GetTimeStamp() / 1e6));
+        duration<double>(prt_packet_->GetTimeStamp() / 1e6));
     const auto time = start_time_local_ + (packet_time - start_time_packet_);
 
     // Feed the new measurement to the subject
