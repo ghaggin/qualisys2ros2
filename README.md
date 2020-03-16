@@ -1,28 +1,26 @@
 # ROS Driver for Motion Capture Systems
-![VICON Logo](http://www.awn.com/sites/default/files/styles/inline_medium/public/image/featured/1025139-vicon-delivers-motion-capture-innovations-siggraph-2015.jpg?itok=vsH7Prwo)
+This project ports ros1 [motion_capture_system](https://github.com/KumarRobotics/motion_capture_system) for Qualisys to ROS2 eloquent.
 
 ![QUALISYS Logo](http://isbs2015.sciencesconf.org/conference/isbs2015/pages/Qualisys_Logga_PMS.png)
 
-This package contains ROS drivers for two different motion capture systems,**VICON** And **QUALISYS**.
+This package contains a ROS2 driver for the **QUALISYS** motion capture systems.
 
 ## License
-For the VICON driver, we use the [offical SDK](http://www.vicon.com/products/software/datastream-sdk).
-
 For the QUALISYS driver, we use the interface from [Qualisys2Ros](https://github.com/omwdunkley/Qualisys2Ros).
 
 For the rest of the software, the license is Apache 2.0 wherever not specified.
 
 ## Compiling
-This is a catkin package. Make sure the package is on `ROS_PACKAGE_PATH` after cloning the package to your workspace. Drivers for different motion capture system can be independently compiled.
+Ensure that ROS2 eloquent is installed on WSL:Ubuntu 18.04 and that the environment is configured.  Clone the repo into your ros workspace and build with colcon. You can install the colcon build system [here](https://colcon.readthedocs.io/en/released/user/installation.html)
 
 ```
-cd your_work_space
-catkin_make --pkg mocap_{sys} --cmake-args -DCMAKE_BUILD_TYPE=Release
+cd ~/ros2_ws
+colcon build --packages-select mocap_base mocap_qualisys
 ```
-
-This will compile the drivers for `{sys}`
 
 ## Example Usage
+
+I got this to run on WLS 1 and 2, however, on WSL 1 I could not communicate with nodes operating in another terminal.  This happened when I opened another Ubuntu terminal (which I think is another instance of Ubuntu) and when I opened a new tmux pane in the active Ubuntu terminal.  To fixed this I switch to WSL 2 which allowed me to communicate between ROS nodes.  The only issue is that the local host works differently.  For WSL1, connect to QTM at 127.0.0.1:22222.  For WSL2 go the windows command prompt and run ```ipconfig```.  Then find the connection for ```Ethernet adapter vEthernet (WSL)```.  Use this ip address at port 22222 to connect to QTM.
 
 **Common Parameters**
 
@@ -56,16 +54,9 @@ A vector of subjects of interest. Leave the vector empty if all subjects are to 
 
 Odometry message for each specified subject in `model_list`.
 
-To be compatible with the name of the topics published of `vicon_odom` in [vicon repo of KumarRobotics](https://github.com/KumarRobotics/vicon), you can uncomment the following line in the launch file:
-`<remap from="{mocap_sys}/{subject_name}/odom" to="/{subject_name}/odom">`
-
 **Node**
 
-`roslaunch {mocap_sys} {sys}.launch`
-
-For example,
-
-`roslaunch mocap_vicon vicon.launch`
+`ros2 launch mocap_qualisys qualisys.launch.py`
 
 ## FAQ
 

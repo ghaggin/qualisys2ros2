@@ -70,7 +70,7 @@ bool QualisysDriver::init() {
     /**
      * Hard Coding for now since the parameters arent working for me
      */
-    server_address_ = "127.0.0.1";
+    server_address_ = "172.25.112.1";
     base_port_      = 22222;
     model_list_     = vector<string>(0);
     model_list_.push_back("Quad1");
