@@ -39,24 +39,9 @@ double QualisysDriver::deg2rad = M_PI / 180.0;
 bool QualisysDriver::init() {
     // The base port (as entered in QTM, TCP/IP port number, in the RT output tab
     // of the workspace options
-
-    /**
-     * Old parameters
-     */
-    //   nh.param("server_address", server_address, string("192.168.254.1"));
-    //   nh.param("server_base_port", base_port, 22222);
-    //   nh.param("model_list", model_list, vector<string>(0));
-    //   nh.param("frame_rate", frame_rate, 100);
-    //   nh.param("max_accel", max_accel, 10.0);
-    //   nh.param("publish_tf", publish_tf, false);
-    //   nh.param("fixed_frame_id", fixed_frame_id, string("mocap"));
-
-    /**
-     * New Parameters
-     */
-    declare_parameter("config_name");
+    declare_parameter("server_address", "192.168.129.216");
     declare_parameter("server_base_port");
-    declare_parameter("model_list");
+    // declare_parameter("model_list");
     declare_parameter("frame_rate");
     declare_parameter("max_accel");
     declare_parameter("publish_tf");
@@ -70,13 +55,26 @@ bool QualisysDriver::init() {
             rclcpp::shutdown();
         }
     }
-    server_address = parameters_client->get_parameter<string>("server_address");
-    base_port      = parameters_client->get_parameter<int>("server_base_port");
-    model_list     = parameters_client->get_parameter<vector<string>>("model_list");
-    frame_rate     = parameters_client->get_parameter<int>("frame_rate");
-    max_accel      = parameters_client->get_parameter<double>("max_accel");
-    publish_tf     = parameters_client->get_parameter<bool>("publish_tf");
-    fixed_frame_id = parameters_client->get_parameter<string>("fixed_frame_id");
+
+    // server_address = parameters_client->get_parameter<string>("server_address",
+    // "192.168.129.216"); base_port      =
+    // parameters_client->get_parameter<int>("server_base_port", 22222); model_list     =
+    // parameters_client->get_parameter<vector<string>>("model_list"); frame_rate     =
+    // parameters_client->get_parameter<int>("frame_rate", 100); max_accel      =
+    // parameters_client->get_parameter<double>("max_accel", 10.0); publish_tf     =
+    // parameters_client->get_parameter<bool>("publish_tf", true); fixed_frame_id =
+    // parameters_client->get_parameter<string>("fixed_frame_id", "mocap");
+
+    /**
+     * Hard Coding for now since the parameters arent working for me
+     */
+    server_address = "127.0.0.1";
+    base_port      = 22222;
+    model_list     = vector<string>(0);
+    frame_rate     = 100;
+    max_accel      = 10.0;
+    publish_tf     = true;
+    fixed_frame_id = "mocap";
 
     frame_interval = 1.0 / static_cast<double>(frame_rate);
     double& dt     = frame_interval;
@@ -105,6 +103,8 @@ bool QualisysDriver::init() {
 
     tf_publisher_ = this->create_publisher<tf2_msgs::msg::TFMessage>("/tf", 10);
 
+    auto callback = [this]() -> void { this->run(); };
+    timer_        = this->create_wall_timer(duration<double>(frame_interval), callback);
     return true;
 }
 

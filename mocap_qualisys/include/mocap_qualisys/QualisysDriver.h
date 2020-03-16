@@ -116,6 +116,8 @@ class QualisysDriver : public MoCapDriverBase {
         start_time_local_;
     std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<double>>
         start_time_packet_;
+
+    rclcpp::TimerBase::SharedPtr timer_;
 };
 } // namespace mocap
 

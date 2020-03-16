@@ -34,6 +34,20 @@ add_executable(mocap_qualisys_node
 target_link_libraries(mocap_qualisys_node
     mocap_qualisys_driver
 )
+target_include_directories(mocap_qualisys_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
 ament_target_dependencies(mocap_qualisys_node "rclcpp")
+
+install(
+  TARGETS mocap_qualisys_node
+  EXPORT export_${PROJECT_NAME}
+  DESTINATION lib/${PROJECT_NAME})
+
+# Install launch files.
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}/
+)
 
 ament_package()
